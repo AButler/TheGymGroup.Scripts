@@ -1,0 +1,78 @@
+<html lang="en">
+  <head>
+    <title>Payment</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://widget.dev.payment.sportalliance.com/widget.js"></script>
+    <style type="text/css">
+      main {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 900px;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+      }
+      .box {
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 20px;
+        width: 100%;
+        font-size: 18px;
+        border-radius: 3px;
+      }
+      .box input {
+        width: 100%;
+        font-size: 16px;
+        padding: 5px;
+        margin-top: 5px;
+        font-family: Consolas, "Courier New", Courier, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="box">
+        Payment Session Token:
+        <input
+          type="text"
+          readonly
+          id="payment-session-token"
+          value="Not Provided"
+        />
+      </div>
+      <div id="widget"></div>
+      <div id="payment-request-token-box" class="box" style="display: none">
+        Payment Request Token:
+        <input type="text" readonly id="payment-request-token" value="???" />
+      </div>
+    </main>
+    <script>
+      const paymentSessionToken = new URLSearchParams(
+        window.location.search
+      ).get("paymentSessionToken");
+
+      if (paymentSessionToken) {
+        document.getElementById("payment-session-token").value =
+          paymentSessionToken;
+
+        const widget = paymentWidget.init({
+          userSessionToken: paymentSessionToken,
+          environment: "sandbox",
+          container: "widget",
+          countryCode: "GB",
+          locale: "en-GB",
+          onSuccess: (paymentToken) => {
+            document.getElementById("widget").style.display = "none";
+            document.getElementById("payment-request-token").value =
+              paymentToken;
+            document.getElementById("payment-request-token-box").style.display =
+              "block";
+            document.getElementById("payment-request-token").select();
+          },
+        });
+      }
+    </script>
+  </body>
+</html>
