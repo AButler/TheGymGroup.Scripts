@@ -67,12 +67,16 @@ foreach ($dayPass in $dayPassesToPurchase) {
     onlineOfferId              = $dayPassDetails.id
     customerId                 = $memberId
     validFrom                  = $today.AddDays($dayPass.daysInFuture).ToString("yyyy-MM-dd")
-    onetimePaymentRequestToken = $paymentRequestToken
+    paymentRequestToken = $paymentRequestToken
   }
 
   Write-Host $purchaseBody -ForegroundColor DarkGray
 
-  $purchaseResponse = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/purchase" -Method Post -Headers @{ 'x-api-key' = $gymIds[$dayPass.studioId].apiKey } -Body $purchaseBody -ContentType 'application/json'
+  $purchaseResponse = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/purchase" -Method Post -Headers @{ 'x-api-key' = $gymIds[$dayPass.studioId].apiKey } -Body $purchaseBody -ContentType 'application/json' -StatusCodeVariable purchaseStatusCode -SkipHttpErrorCheck
+  if ($purchaseStatusCode -ne 200) {
+    Write-Error "Purchase failed with status code $purchaseStatusCode`n`n$(ConvertTo-Json $purchaseResponse -Depth 10)"
+    exit 1
+  }
 
   $iteration++
 }

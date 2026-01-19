@@ -55,7 +55,11 @@ foreach ($guestPass in $guestPassesToPurchase) {
 
   Write-Host $purchaseBody -ForegroundColor DarkGray
 
-  $purchaseResponse = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/purchase" -Method Post -Headers @{ 'x-api-key' = $gymIds[$guestPass.studioId].apiKey } -Body $purchaseBody -ContentType 'application/json'
+  $purchaseResponse = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/purchase" -Method Post -Headers @{ 'x-api-key' = $gymIds[$guestPass.studioId].apiKey } -Body $purchaseBody -ContentType 'application/json' -StatusCodeVariable purchaseStatusCode -SkipHttpErrorCheck
+  if ($purchaseStatusCode -ne 200) {
+    Write-Error "Purchase failed with status code $purchaseStatusCode`n`n$(ConvertTo-Json $purchaseResponse -Depth 10)"
+    exit 1
+  }
 
   $iteration++
 }
