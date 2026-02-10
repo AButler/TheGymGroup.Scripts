@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$memberId = 1210656710
+$memberId = 1210716601
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -43,12 +43,12 @@ foreach ($guestPass in $guestPassesToPurchase) {
   $purchasableGuestPasses = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/purchasable" -Method Get -Headers @{ 'x-api-key' = $gymIds[$guestPass.studioId].apiKey }
   $guestPassDetails = ($purchasableGuestPasses.result | Where-Object { $_.name -eq $guestPass.name })
 
-  Write-Host "  - [$($guestPassDetails.id)] $($guestPassDetails.name) £$($guestPassDetails.price.amount)" -ForegroundColor Green
+  Write-Host "  - [$($guestPassDetails.onlineOfferId)] $($guestPassDetails.name) £$($guestPassDetails.price.amount)" -ForegroundColor Green
 
   Write-Host "  - Purchasing..."
 
   $purchaseBody = ConvertTo-Json @{
-    onlineOfferId = $guestPassDetails.id
+    onlineOfferId = $guestPassDetails.onlineOfferId
     customerId    = $memberId
     validFrom     = $today.AddDays($guestPass.daysInFuture).ToString("yyyy-MM-dd")
   }
@@ -67,7 +67,7 @@ foreach ($guestPass in $guestPassesToPurchase) {
 $purchasedPasses = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/$memberId/purchased" -Method Get -Headers @{ 'x-api-key' = $apiKey }
 
 foreach ($purchasedPass in $purchasedPasses) {
-  Write-Host "  - [$($purchasedPass.id)] $($purchasedPass.name)" -ForegroundColor Green
+  Write-Host "  - [$($purchasedPass.onlineOfferPurchaseId)] $($purchasedPass.name)" -ForegroundColor Green
 }
 
 Write-Host 'Done!'

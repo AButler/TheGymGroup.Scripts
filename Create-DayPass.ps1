@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 
-$memberId = 1210465502
+$memberId = 1210716791
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -27,7 +27,6 @@ $dayPassesToPurchase = @(
 
 $today = [DateOnly]::FromDateTime([DateTime]::Today)
 $crossStudioApiKey = $($gymIds.Values)[0].apiKey
-$paymentFilePath = Resolve-Path (Join-Path $PSScriptRoot 'payment-page.html')
 
 Write-Host "Getting customer..."
 
@@ -44,7 +43,7 @@ foreach ($dayPass in $dayPassesToPurchase) {
   $purchasableDayPasses = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/purchasable" -Method Get -Headers @{ 'x-api-key' = $gymIds[$dayPass.studioId].apiKey }
   $dayPassDetails = ($purchasableDayPasses.result | Where-Object { $_.name -eq $dayPass.name })
 
-  Write-Host "  - [$($dayPassDetails.id)] $($dayPassDetails.name) £$($dayPassDetails.price.amount)" -ForegroundColor Green
+  Write-Host "  - [$($dayPassDetails.onlineOfferId)] $($dayPassDetails.name) £$($dayPassDetails.price.amount)" -ForegroundColor Green
 
   Write-Host "  - Creating payment token..."
   $paymentRequestBody = ConvertTo-Json @{
@@ -57,16 +56,16 @@ foreach ($dayPass in $dayPassesToPurchase) {
   $sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
 
   Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
-  Write-Host "    file:///$($paymentFilePath)?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+  Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
 
   $paymentRequestToken = Read-Host -Prompt "    Enter payment request token"
 
   Write-Host "  - Purchasing..."
 
   $purchaseBody = ConvertTo-Json @{
-    onlineOfferId              = $dayPassDetails.id
-    customerId                 = $memberId
-    validFrom                  = $today.AddDays($dayPass.daysInFuture).ToString("yyyy-MM-dd")
+    onlineOfferId       = $dayPassDetails.onlineOfferId
+    customerId          = $memberId
+    validFrom           = $today.AddDays($dayPass.daysInFuture).ToString("yyyy-MM-dd")
     paymentRequestToken = $paymentRequestToken
   }
 
@@ -84,7 +83,7 @@ foreach ($dayPass in $dayPassesToPurchase) {
 $purchasedDayPasses = Invoke-RestMethod -Uri "$baseUrl/v1/online-offers/$memberId/purchased" -Method Get -Headers @{ 'x-api-key' = $apiKey }
 
 foreach ($purchasedDayPass in $purchasedDayPasses) {
-  Write-Host "  - [$($purchasedDayPass.id)] $($purchasedDayPass.name)" -ForegroundColor Green
+  Write-Host "  - [$($purchasedDayPass.onlineOfferPurchaseId)] $($purchasedDayPass.name)" -ForegroundColor Green
 }
 
 Write-Host 'Done!'
