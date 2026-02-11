@@ -1,7 +1,10 @@
+using namespace System.Management.Automation.Host
+
 $ErrorActionPreference = 'Stop'
 
 #1210277486 = Weston Addison (Standard - Existing Paid Freeze Ongoing)
-$memberId = 1210277486
+#1210277488 = Walker Allison (Standard - Existing Paid Freeze Ongoing)
+$memberId = 1210277488
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -71,7 +74,7 @@ $currentFreezePeriod = $currentFreezePeriods | Select-Object -First 1
 Write-Host "Previewing unfreeze..."
 $unfreezeRequestBody = @{
   startDate = $currentFreezePeriod.startDate
-  endDate   = [DateTime]::Today.ToString("yyyy-MM-dd")
+  endDate   = [DateTime]::Today.AddDays(-1).ToString("yyyy-MM-dd")
   reasonId  = $currentFreezePeriod.idlePeriodReason.id
   unlimited = $false
 }
@@ -81,4 +84,43 @@ Write-Host (ConvertTo-Json $unfreezeRequestBody)
 
 $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryContract.id)/self-service/idle-periods/$($currentFreezePeriod.id)/preview" -Method Put -Headers @{ "x-api-key" = $apiKey } -Body ($unfreezeRequestBody | ConvertTo-Json) -ContentType "application/json"
   
-Write-Host "Unfreeze Response: $($previewResponse | ConvertTo-Json -Depth 10)"
+#Write-Host "Unfreeze Preview Response: $($previewResponse | ConvertTo-Json -Depth 10)"
+
+Write-Host "Unfreeze Preview - Payment Schedule:"
+$dueToday = 0;
+foreach ($charge in $previewResponse.previewCharges) {
+  Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]"
+  if ($charge.paidPeriodFrom -eq [DateTime]::Today.ToString("yyyy-MM-dd")) {
+    $dueToday += $charge.amount.amount
+  }
+}
+
+Write-Host "Total Due Today: $($dueToday.ToString("C"))"
+
+$choices = [ChoiceDescription[]] @(
+  [ChoiceDescription]::new("&Yes (Unfreeze Membership)", "Unfreeze the membership"),
+  [ChoiceDescription]::new("&No (Skip)", "Do nothing")
+)
+
+$choice = $host.UI.PromptForChoice('Unfreeze', 'Do you want to unfreeze the membership?', $choices, 1)
+
+if ($choice -eq 1) {
+  Write-Host "Skipping"
+  exit 0
+}
+
+$boundary = [Guid]::NewGuid().ToString()
+$unfreezeMultipartBody = @( 
+  "--$boundary",
+  "Content-Disposition: form-data;name=`"data`"",
+  "Content-Type: application/json",
+  '',
+  "$($unfreezeRequestBody | ConvertTo-Json)",
+  "--$boundary--"
+) -join "`r`n"
+
+$unfreezeResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryContract.id)/self-service/idle-periods/$($currentFreezePeriod.id)" -Method Put -Headers @{ "x-api-key" = $apiKey } -Body $unfreezeMultipartBody -ContentType "multipart/form-data; boundary=$boundary"
+
+Write-Host "Unfreeze Response: $($unfreezeResponse | ConvertTo-Json -Depth 10)"
+
+Write-Host "Membership unfrozen successfully."
