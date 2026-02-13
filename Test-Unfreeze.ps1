@@ -4,7 +4,9 @@ $ErrorActionPreference = 'Stop'
 
 #1210277486 = Weston Addison (Standard - Existing Paid Freeze Ongoing)
 #1210277488 = Walker Allison (Standard - Existing Paid Freeze Ongoing)
-$memberId = 1210277488
+#1210285154 = Thomas Amelia (Standard - Existing Free Freeze Ongoing)
+#1210287297 = Samuel Ava (Standard - Existing Free Freeze Ongoing)
+$memberId = 1211104414
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -88,10 +90,12 @@ $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryCon
 
 Write-Host "Unfreeze Preview - Payment Schedule:"
 $dueToday = 0;
+$dueDate = '';
 foreach ($charge in $previewResponse.previewCharges) {
   Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]"
   if ($charge.paidPeriodFrom -eq [DateTime]::Today.ToString("yyyy-MM-dd")) {
     $dueToday += $charge.amount.amount
+    $dueDate = $charge.dueDate
   }
 }
 
@@ -109,6 +113,19 @@ if ($choice -eq 1) {
   exit 0
 }
 
+$paymentRequestBody = ConvertTo-Json @{
+  amount                  = $dueToday
+  scope                   = 'ECOM'
+  permittedPaymentChoices = @("CREDIT_CARD")
+  referenceText           = 'Unfreeze Pro-Rata Fee'
+  customerId              = $memberId
+}
+
+$sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
+Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
+Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+$paymentRequestToken = Read-Host -Prompt "Enter payment request token"
+
 $boundary = [Guid]::NewGuid().ToString()
 $unfreezeMultipartBody = @( 
   "--$boundary",
@@ -121,6 +138,38 @@ $unfreezeMultipartBody = @(
 
 $unfreezeResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryContract.id)/self-service/idle-periods/$($currentFreezePeriod.id)" -Method Put -Headers @{ "x-api-key" = $apiKey } -Body $unfreezeMultipartBody -ContentType "multipart/form-data; boundary=$boundary"
 
-Write-Host "Unfreeze Response: $($unfreezeResponse | ConvertTo-Json -Depth 10)"
+#Write-Host "Unfreeze Response: $($unfreezeResponse | ConvertTo-Json -Depth 10)"
+
+$debtId = $null
+$retryDebtAttempts = 0
+
+while ($null -eq $debtId -and $retryDebtAttempts -lt 10) {
+  $upcomingTransactions = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/transactions/upcoming" -Method Get -Headers @{ "x-api-key" = $apiKey }
+
+  $debtId = ($upcomingTransactions.result | Where-Object { $_.amount.amount -eq $dueToday -and $_.openAmount.amount -eq $dueToday -and $_.dueDate -eq $dueDate } | Select-Object -First 1).id
+
+  if ($null -eq $debtId) { 
+    Write-Host "Could not find matching upcoming transaction for unfreeze charge. Retrying in 1 seconds..." 
+    Start-Sleep -Seconds 1
+    $retryDebtAttempts++ 
+  }
+}
+
+if ($null -eq $debtId) {
+  Write-Host (ConvertTo-Json $upcomingTransactions -Depth 10)
+  Write-Error "Could not find upcoming transaction for the unfreeze charge." 
+  exit 1 
+}
+
+$bookPaymentBody = @{
+  paymentRequestToken = $paymentRequestToken
+  amount              = @{
+    amount   = $dueToday
+    currency = 'GBP' 
+  } 
+  debtClaimIds        = @($debtId)
+}
+
+$bookPaymentResponse = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/payment" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $bookPaymentBody) -ContentType 'application/json'
 
 Write-Host "Membership unfrozen successfully."

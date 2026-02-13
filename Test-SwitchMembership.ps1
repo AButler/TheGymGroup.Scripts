@@ -2,7 +2,7 @@ using namespace System.Management.Automation.Host
 
 $ErrorActionPreference = 'Stop'
 
-$memberId = 1210966165
+$memberId = 1210365931
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -93,11 +93,11 @@ if ($primaryContract.price -gt $destination.price) {
   $previewBody.selectedOptionalModuleIds += $destination.adminFeeId
 }
 
-#Write-Host (ConvertTo-Json $previewBody -Depth 10)
+Write-Host (ConvertTo-Json $previewBody -Depth 10)
 
 $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$memberId/membership-switch/preview" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $previewBody) -ContentType 'application/json'
 
-#Write-Host (ConvertTo-Json $previewResponse -Depth 10)
+Write-Host (ConvertTo-Json $previewResponse -Depth 10)
 
 $dueOnSigningAmount = $previewResponse.paymentPreview.dueOnSigningAmount.amount
 
