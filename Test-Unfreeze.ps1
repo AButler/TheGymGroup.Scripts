@@ -91,11 +91,15 @@ $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryCon
 Write-Host "Unfreeze Preview - Payment Schedule:"
 $dueToday = 0;
 $dueDate = '';
+$paidPeriodFrom = '';
+$paidPeriodTo = '';
 foreach ($charge in $previewResponse.previewCharges) {
   Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]"
-  if ($charge.paidPeriodFrom -eq [DateTime]::Today.ToString("yyyy-MM-dd")) {
+  if ($charge.paidPeriodFrom -eq [DateTime]::Today.ToString("yyyy-MM-dd") -and $charge.chargeType -eq 'MEMBERSHIP_CHARGE') {
     $dueToday += $charge.amount.amount
     $dueDate = $charge.dueDate
+    $paidPeriodFrom = $charge.paidPeriodFrom
+    $paidPeriodTo = $charge.paidPeriodTo
   }
 }
 
@@ -146,7 +150,7 @@ $retryDebtAttempts = 0
 while ($null -eq $debtId -and $retryDebtAttempts -lt 10) {
   $upcomingTransactions = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/transactions/upcoming" -Method Get -Headers @{ "x-api-key" = $apiKey }
 
-  $debtId = ($upcomingTransactions.result | Where-Object { $_.amount.amount -eq $dueToday -and $_.openAmount.amount -eq $dueToday -and $_.dueDate -eq $dueDate } | Select-Object -First 1).id
+  $debtId = ($upcomingTransactions.result | Where-Object { $_.amount.amount -eq $dueToday -and $_.openAmount.amount -eq $dueToday -and $_.dueDate -eq $dueDate -and $_.paidPeriodFrom -eq $paidPeriodFrom -and $_.paidPeriodTo -eq $paidPeriodTo } | Select-Object -First 1).id
 
   if ($null -eq $debtId) { 
     Write-Host "Could not find matching upcoming transaction for unfreeze charge. Retrying in 1 seconds..." 

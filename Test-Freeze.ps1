@@ -115,9 +115,9 @@ if ($canFreeFreeze) {
     "--$boundary--"
   ) -join "`r`n"
 
-  #$freezeResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryContract.id)/self-service/idle-periods" -Method Post -Headers @{ "x-api-key" = $apiKey } -Body $freezeRequestMultipartBody -ContentType "multipart/form-data; boundary=$boundary"
+  $freezeResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryContract.id)/self-service/idle-periods" -Method Post -Headers @{ "x-api-key" = $apiKey } -Body $freezeRequestMultipartBody -ContentType "multipart/form-data; boundary=$boundary"
 
-  #Write-Host "Freeze Response: $($freezeResponse | ConvertTo-Json)"
+  Write-Host "Freeze Response: $($freezeResponse | ConvertTo-Json)"
 }
 else {
   Write-Host "Creating paid freeze..."
