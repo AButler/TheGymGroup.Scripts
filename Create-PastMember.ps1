@@ -6,11 +6,14 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 
+$allowRetroactive = $false
+
 switch ($Environment) {
   "dev" {
     $BaseUrl = "https://tgg-dev.web.sandbox.perfectgym.com"
     $Username = $env:PG_DEV_USER ?? $env:PG_USERNAME
     $Password = $env:PG_DEV_PASSWORD ?? $env:PG_PASSWORD
+    $allowRetroactive = $true
     Write-Host "Using DEV environment - $BaseUrl"
   }
   "sit" {
@@ -108,7 +111,7 @@ Write-Host "Creating member..."
 
 $lastName = "Member$(Get-Date -Format 'yyyyMMddHHmmss')"
 $today = Get-Date
-$startDate = $today.AddMonths(-1)
+$startDate = $allowRetroactive ? $today.AddYears(-1).AddMonths(-1) : $today.AddMonths(-1)
 $employeeId = $employee.employeeId
 $rateId = $standardRate.databaseId
 $rateDetailId = $standardRateDetail.databaseId
@@ -207,9 +210,9 @@ $createMemberPayload = @{
     fkRateDetail                                            = $rateDetailId
     firstBookingDate                                        = $today.ToString("yyyy-MM-dd")
     firstBookingType                                        = "CONTRACT_START_DATE"
-    startDateCurrentTerm                                    = $startDate.ToString("yyyy-MM-dd")
+    startDateCurrentTerm                                    = $today.ToString("yyyy-MM-dd")
     preuseType                                              = 0
-    nextCancelationDate                                     = $startDate.AddMonths(1).AddDays(-1).AddDays(-14).ToString("yyyy-MM-dd")
+    nextCancelationDate                                     = $today.AddMonths(1).AddDays(-1).AddDays(-14).ToString("yyyy-MM-dd")
     extensionCancelationPeriod                              = @{
       term     = 14
       termUnit = 0
@@ -226,7 +229,8 @@ $createMemberPayload = @{
     allowReferenceDateRecurringPaymentFrequencyAtEndOfMonth = $false
     extensionPeriodCounter                                  = 0
     rateDetailExtensionType                                 = "TERM_EXTENSION"
-    conclusionDate                                          = $today.ToString("yyyy-MM-dd")
+    conclusionDate                                          = $startDate.ToString("yyyy-MM-dd")
+    retroactive                                             = $allowRetroactive
   }
   image                = @{
     imageUrl      = ""
@@ -280,7 +284,7 @@ $createAddonPayload = @{
   fkContract                                = $contractId
   fkRateDetailPaymentFrequency              = $guestPassAddonPaymentFrequency.databaseId
   startDate                                 = $startDate.ToString("yyyy-MM-dd")
-  retroactive                               = $false
+  retroactive                               = $allowRetroactive
   employeeId                                = $employeeId
   paymentFrequencyUnit                      = $guestPassAddonPaymentFrequency.unit
   salesSource                               = "WEBCLIENT"
@@ -321,7 +325,7 @@ $createAddonPayload = @{
   fkContract                                = $contractId
   fkRateDetailPaymentFrequency              = $yangaAddonPaymentFrequency.databaseId
   startDate                                 = $startDate.ToString("yyyy-MM-dd")
-  retroactive                               = $false
+  retroactive                               = $allowRetroactive
   employeeId                                = $employeeId
   paymentFrequencyUnit                      = $yangaAddonPaymentFrequency.unit
   salesSource                               = "WEBCLIENT"
@@ -339,11 +343,14 @@ Write-Host "Yanga Addon ID: $($yangaAddonResponse.databaseId)" -ForegroundColor 
 if ($FreezeMember) {
   Write-Host "Freezing member..."
 
-  $idlePeriodConfigurationId = 1210782620
-  $idlePeriodReasonId = 1210005510
+  $idlePeriodConfig = Invoke-RestMethod -Uri "$BaseUrl/rest-api/idleperiodconfigurations/contract/$contractId/checkforcreate" -Method Get -WebSession $session
+
+  $idlePeriodConfigurationId = $idlePeriodConfig.databaseId
+  $idlePeriodReasonId = ($idlePeriodConfig.reasons | Select-Object -First 1).databaseId
+  $freezePeriodStartDate = $allowRetroactive ? $startDate.AddMonths(6) : $startDate
 
   $freezePayload = @{
-    startDate                           = $startDate.ToString("yyyy-MM-dd")
+    startDate                           = $freezePeriodStartDate.ToString("yyyy-MM-dd")
     entranceLock                        = $true
     idlePeriodAmount                    = 0
     idlePeriodReason                    = @{

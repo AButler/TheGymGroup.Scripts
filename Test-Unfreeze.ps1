@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 #1210277488 = Walker Allison (Standard - Existing Paid Freeze Ongoing)
 #1210285154 = Thomas Amelia (Standard - Existing Free Freeze Ongoing)
 #1210287297 = Samuel Ava (Standard - Existing Free Freeze Ongoing)
-$memberId = 1211334817
+$memberId = 1211355130
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
