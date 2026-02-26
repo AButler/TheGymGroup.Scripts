@@ -64,6 +64,7 @@ else {
 Write-Host "Member ID: $memberId" -ForegroundColor Green
 $member = Invoke-RestMethod -Uri "$baseUrl/v1/cross-studio/customers/$memberId" -Method Get -Headers @{ 'x-api-key' = $apiKey }
 Write-Host "Member Name: $($member.firstName) $($member.lastName)" -ForegroundColor Green
+$apiKey = $gymIds[$member.studioId.ToString()].apiKey
 
 $offers = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/membership-offers" -Method Get -Headers @{ 'x-api-key' = $apiKey }
 
@@ -91,9 +92,15 @@ $selectedTerm = $selectedOffer.terms[$choice]
 Write-Host "Selected term: $($selectedTerm.term.value) $($selectedTerm.term.unit) - $($selectedTerm.paymentFrequency.price.amount)" -ForegroundColor Green
 Write-Host ""
 
+$voucherCode = Read-Host -Prompt "Voucher code"
+if ([string]::IsNullOrWhiteSpace($voucherCode)) {
+  $voucherCode = $null
+}
+
 $previewBody = ConvertTo-Json @{
   contractOfferTermId = $selectedTerm.id
   startDate           = (Get-Date).ToString('yyyy-MM-dd')
+  voucherCode         = $voucherCode
 }
 
 $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/customers/$memberId/add-membership/preview" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $previewBody -ContentType 'application/json'
@@ -118,6 +125,7 @@ $paymentRequestToken = Read-Host -Prompt "Enter payment request token"
 $addMembershipBody = ConvertTo-Json @{
   contractOfferTermId        = $selectedTerm.id
   startDate                  = (Get-Date).ToString('yyyy-MM-dd')
+  voucherCode                = $voucherCode
   initialPaymentRequestToken = $paymentRequestToken
 }
 
