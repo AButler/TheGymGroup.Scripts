@@ -155,7 +155,7 @@ $debtIds = @()
 $retryDebtAttempts = 0
 
 Write-Host "Looking for upcoming transactions for the unfreeze charge..."
-Write-Host (ConvertTo-Json $debtsToFind -Depth 10)
+#Write-Host (ConvertTo-Json $debtsToFind -Depth 10)
 
 while ($debtIds.Count -ne $debtsToFind.Count -and $retryDebtAttempts -lt 10) {
   $upcomingTransactions = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/transactions/upcoming?sliceSize=50" -Method Get -Headers @{ "x-api-key" = $apiKey }
@@ -191,8 +191,8 @@ $bookPaymentBody = @{
 }
 
 Write-Host "Booking payment for unfreeze charge..."
-Write-Host "POST $baseUrl/v1/customers/$memberId/account/payment"
-Write-Host (ConvertTo-Json $bookPaymentBody -Depth 10)
+#Write-Host "POST $baseUrl/v1/customers/$memberId/account/payment"
+#Write-Host (ConvertTo-Json $bookPaymentBody -Depth 10)
 $bookPaymentResponse = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/payment" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $bookPaymentBody) -ContentType 'application/json'
 
 Write-Host "Membership unfrozen successfully."

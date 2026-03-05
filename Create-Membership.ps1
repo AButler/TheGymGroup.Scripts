@@ -108,19 +108,37 @@ $upfrontAmount = $previewResponse.paymentPreview.dueOnSigningAmount.amount
 
 Write-Host ""
 Write-Host "Upfront Amount Due: $upfrontAmount" -ForegroundColor Green
+Write-Host ""
 
-$paymentRequestBody = ConvertTo-Json @{
-  amount                  = $upfrontAmount
-  scope                   = 'ECOM'
-  permittedPaymentChoices = @("BACS", "CREDIT_CARD")
-  referenceText           = 'Upfront Fee'
-  customerId              = $memberId
+$accountBalance = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/balances" -Method Get -Headers @{ 'x-api-key' = $apiKey }
+if ($accountBalance.accountBalance.amount -gt 0) {
+  Write-Host "Member has an account balance of $($accountBalance.accountBalance.amount) $($accountBalance.accountBalance.currency). This will be applied to the upfront amount." -ForegroundColor Yellow
+  $upfrontAmount = [Math]::Max(0, $upfrontAmount - $accountBalance.accountBalance.amount)
+  Write-Host ""
+  Write-Host "New Upfront Amount Due: $upfrontAmount" -ForegroundColor Green
+  Write-Host ""
+}
+else {
+  Write-Host "Member has no account balance." -ForegroundColor Green
 }
 
-$sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
-Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
-Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
-$paymentRequestToken = Read-Host -Prompt "Enter payment request token"
+if ($upfrontAmount -gt 0) {
+  $paymentRequestBody = ConvertTo-Json @{
+    amount                  = $upfrontAmount
+    scope                   = 'ECOM'
+    permittedPaymentChoices = @("BACS", "CREDIT_CARD")
+    referenceText           = 'Upfront Fee'
+    customerId              = $memberId
+  }
+
+  $sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
+  Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
+  Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+  $paymentRequestToken = Read-Host -Prompt "Enter payment request token"
+}
+else {
+  $paymentRequestToken = $null
+}
 
 $addMembershipBody = ConvertTo-Json @{
   contractOfferTermId        = $selectedTerm.id
