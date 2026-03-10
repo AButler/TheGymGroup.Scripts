@@ -2,11 +2,11 @@ using namespace System.Management.Automation.Host
 
 $ErrorActionPreference = 'Stop'
 
-#1210277486 = Weston Addison (Standard - Existing Paid Freeze Ongoing)
-#1210277488 = Walker Allison (Standard - Existing Paid Freeze Ongoing)
-#1210285154 = Thomas Amelia (Standard - Existing Free Freeze Ongoing)
-#1210287297 = Samuel Ava (Standard - Existing Free Freeze Ongoing)
-$memberId = 1211355130
+$memberId = Read-Host 'Enter existing Member ID'
+
+if ([string]::IsNullOrEmpty($memberId)) {
+  exit 1
+}
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 

@@ -2,7 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [ValidateSet("dev", "sit", "pat")]
   [string]$Environment,
-  [switch]$FreezeMember
+  [switch]$FreezeMember,
+  [switch]$SkipAddons
 )
 $ErrorActionPreference = 'Stop'
 
@@ -111,7 +112,7 @@ Write-Host "Creating member..."
 
 $lastName = "Member$(Get-Date -Format 'yyyyMMddHHmmss')"
 $today = Get-Date
-$startDate = $allowRetroactive ? $today.AddYears(-1).AddMonths(-1) : $today.AddMonths(-1)
+$startDate = $allowRetroactive ? $today.AddYears(-1).AddMonths(-1).AddDays(-12) : $today.AddMonths(-1)
 $employeeId = $employee.employeeId
 $rateId = $standardRate.databaseId
 $rateDetailId = $standardRateDetail.databaseId
@@ -258,87 +259,93 @@ $contractId = $createMemberResponse.contractId
 Write-Host "Member ID: $memberId" -ForegroundColor Green
 Write-Host "Contract ID: $contractId" -ForegroundColor Green
 
-Write-Host "Adding Guest Pass addon..."
+if (!$SkipAddons) {
 
-$createAddonPayload = @{
-  type                                      = "RECURRING"
-  value                                     = $guestPassAddonPaymentFrequency.value
-  unit                                      = $guestPassAddonPaymentFrequency.unit
-  price                                     = $guestPassAddonPaymentFrequency.price
-  money                                     = $guestPassAddonPaymentFrequency.money
-  paidTimePeriodCalculationType             = "REFERENCE_DATE"
-  recurring                                 = $false
-  firstChargeMode                           = "DEFAULT"
-  monthDays                                 = @()
-  ageBasedAdjustmentDtos                    = @()
-  fkRateDetail                              = -1
-  firstEncashment                           = "IMMEDIATELY"
-  paymentFrequencyDynamicAdjustmentRuleDtos = @()
-  priceAdjustment                           = @{
-    adjustmentEntries = @()
+  $addonStartDate = $startDate
+  #$addonStartDate = $startDate.AddMonths(1).AddDays(4)
+
+  Write-Host "Adding Guest Pass addon..."
+
+  $createAddonPayload = @{
+    type                                      = "RECURRING"
+    value                                     = $guestPassAddonPaymentFrequency.value
+    unit                                      = $guestPassAddonPaymentFrequency.unit
+    price                                     = $guestPassAddonPaymentFrequency.price
+    money                                     = $guestPassAddonPaymentFrequency.money
+    paidTimePeriodCalculationType             = "REFERENCE_DATE"
+    recurring                                 = $false
+    firstChargeMode                           = "DEFAULT"
+    monthDays                                 = @()
+    ageBasedAdjustmentDtos                    = @()
+    fkRateDetail                              = -1
+    firstEncashment                           = "IMMEDIATELY"
+    paymentFrequencyDynamicAdjustmentRuleDtos = @()
+    priceAdjustment                           = @{
+      adjustmentEntries = @()
+    }
+    fkOrganizationUnit                        = $studioId
+    paymentDay                                = $startDate.Day
+    firstBookingType                          = "CONTRACT_START_DATE"
+    alignSubContractDueDatesToMainContract    = $true
+    fkContract                                = $contractId
+    fkRateDetailPaymentFrequency              = $guestPassAddonPaymentFrequency.databaseId
+    startDate                                 = $addonStartDate.ToString("yyyy-MM-dd")
+    retroactive                               = $allowRetroactive
+    employeeId                                = $employeeId
+    paymentFrequencyUnit                      = $guestPassAddonPaymentFrequency.unit
+    salesSource                               = "WEBCLIENT"
+    fkModuleRate                              = $guestPassAddon.databaseId
+    startDateOfUse                            = $addonStartDate.ToString("yyyy-MM-dd")
+    discountAdjustmentRules                   = @()
+    orgUnit                                   = $studioId
+    editMode                                  = $false
+    bonusPeriods                              = @()
   }
-  fkOrganizationUnit                        = $studioId
-  paymentDay                                = $startDate.Day
-  firstBookingType                          = "CONTRACT_START_DATE"
-  alignSubContractDueDatesToMainContract    = $true
-  fkContract                                = $contractId
-  fkRateDetailPaymentFrequency              = $guestPassAddonPaymentFrequency.databaseId
-  startDate                                 = $startDate.ToString("yyyy-MM-dd")
-  retroactive                               = $allowRetroactive
-  employeeId                                = $employeeId
-  paymentFrequencyUnit                      = $guestPassAddonPaymentFrequency.unit
-  salesSource                               = "WEBCLIENT"
-  fkModuleRate                              = $guestPassAddon.databaseId
-  startDateOfUse                            = $startDate.AddMonths(1).ToString("yyyy-MM-dd")
-  discountAdjustmentRules                   = @()
-  orgUnit                                   = $studioId
-  editMode                                  = $false
-  bonusPeriods                              = @()
-}
 
-$guestPassAddonResponse = Invoke-RestMethod -Uri "$BaseUrl/rest-api/modulecontract" -Method Post -WebSession $session -Body (ConvertTo-Json $createAddonPayload -Depth 10) -ContentType 'application/json'
-Write-Host "Guest Pass Addon ID: $($guestPassAddonResponse.databaseId)" -ForegroundColor Green
+  $guestPassAddonResponse = Invoke-RestMethod -Uri "$BaseUrl/rest-api/modulecontract" -Method Post -WebSession $session -Body (ConvertTo-Json $createAddonPayload -Depth 10) -ContentType 'application/json'
+  Write-Host "Guest Pass Addon ID: $($guestPassAddonResponse.databaseId)" -ForegroundColor Green
 
-Write-Host "Adding Yanga addon..."
+  Write-Host "Adding Yanga addon..."
 
-$createAddonPayload = @{
-  type                                      = "RECURRING"
-  value                                     = $yangaAddonPaymentFrequency.value
-  unit                                      = $yangaAddonPaymentFrequency.unit
-  price                                     = $yangaAddonPaymentFrequency.price
-  money                                     = $yangaAddonPaymentFrequency.money
-  paidTimePeriodCalculationType             = "REFERENCE_DATE"
-  recurring                                 = $false
-  firstChargeMode                           = "DEFAULT"
-  monthDays                                 = @()
-  ageBasedAdjustmentDtos                    = @()
-  fkRateDetail                              = -1
-  firstEncashment                           = "IMMEDIATELY"
-  paymentFrequencyDynamicAdjustmentRuleDtos = @()
-  priceAdjustment                           = @{
-    adjustmentEntries = @()
+  $createAddonPayload = @{
+    type                                      = "RECURRING"
+    value                                     = $yangaAddonPaymentFrequency.value
+    unit                                      = $yangaAddonPaymentFrequency.unit
+    price                                     = $yangaAddonPaymentFrequency.price
+    money                                     = $yangaAddonPaymentFrequency.money
+    paidTimePeriodCalculationType             = "REFERENCE_DATE"
+    recurring                                 = $false
+    firstChargeMode                           = "DEFAULT"
+    monthDays                                 = @()
+    ageBasedAdjustmentDtos                    = @()
+    fkRateDetail                              = -1
+    firstEncashment                           = "IMMEDIATELY"
+    paymentFrequencyDynamicAdjustmentRuleDtos = @()
+    priceAdjustment                           = @{
+      adjustmentEntries = @()
+    }
+    fkOrganizationUnit                        = $studioId
+    paymentDay                                = $startDate.Day
+    firstBookingType                          = "CONTRACT_START_DATE"
+    alignSubContractDueDatesToMainContract    = $true
+    fkContract                                = $contractId
+    fkRateDetailPaymentFrequency              = $yangaAddonPaymentFrequency.databaseId
+    startDate                                 = $addonStartDate.ToString("yyyy-MM-dd")
+    retroactive                               = $allowRetroactive
+    employeeId                                = $employeeId
+    paymentFrequencyUnit                      = $yangaAddonPaymentFrequency.unit
+    salesSource                               = "WEBCLIENT"
+    fkModuleRate                              = $yangaAddon.databaseId
+    startDateOfUse                            = $addonStartDate.ToString("yyyy-MM-dd")
+    discountAdjustmentRules                   = @()
+    orgUnit                                   = $studioId
+    editMode                                  = $false
+    bonusPeriods                              = @()
   }
-  fkOrganizationUnit                        = $studioId
-  paymentDay                                = $startDate.Day
-  firstBookingType                          = "CONTRACT_START_DATE"
-  alignSubContractDueDatesToMainContract    = $true
-  fkContract                                = $contractId
-  fkRateDetailPaymentFrequency              = $yangaAddonPaymentFrequency.databaseId
-  startDate                                 = $startDate.ToString("yyyy-MM-dd")
-  retroactive                               = $allowRetroactive
-  employeeId                                = $employeeId
-  paymentFrequencyUnit                      = $yangaAddonPaymentFrequency.unit
-  salesSource                               = "WEBCLIENT"
-  fkModuleRate                              = $yangaAddon.databaseId
-  startDateOfUse                            = $startDate.AddMonths(1).ToString("yyyy-MM-dd")
-  discountAdjustmentRules                   = @()
-  orgUnit                                   = $studioId
-  editMode                                  = $false
-  bonusPeriods                              = @()
-}
 
-$yangaAddonResponse = Invoke-RestMethod -Uri "$BaseUrl/rest-api/modulecontract" -Method Post -WebSession $session -Body (ConvertTo-Json $createAddonPayload -Depth 10) -ContentType 'application/json'
-Write-Host "Yanga Addon ID: $($yangaAddonResponse.databaseId)" -ForegroundColor Green
+  $yangaAddonResponse = Invoke-RestMethod -Uri "$BaseUrl/rest-api/modulecontract" -Method Post -WebSession $session -Body (ConvertTo-Json $createAddonPayload -Depth 10) -ContentType 'application/json'
+  Write-Host "Yanga Addon ID: $($yangaAddonResponse.databaseId)" -ForegroundColor Green
+}
 
 if ($FreezeMember) {
   Write-Host "Freezing member..."

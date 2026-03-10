@@ -2,7 +2,11 @@ using namespace System.Management.Automation.Host
 
 $ErrorActionPreference = 'Stop'
 
-$memberId = 1210365931
+$memberId = Read-Host 'Enter existing Member ID'
+
+if ([string]::IsNullOrEmpty($memberId)) {
+  exit 1
+}
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -93,17 +97,47 @@ if ($primaryContract.price -gt $destination.price) {
   $previewBody.selectedOptionalModuleIds += $destination.adminFeeId
 }
 
-Write-Host (ConvertTo-Json $previewBody -Depth 10)
+#Write-Host (ConvertTo-Json $previewBody -Depth 10)
 
 $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$memberId/membership-switch/preview" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $previewBody) -ContentType 'application/json'
 
-Write-Host (ConvertTo-Json $previewResponse -Depth 10)
+#Write-Host (ConvertTo-Json $previewResponse -Depth 10)
 
 $dueOnSigningAmount = $previewResponse.paymentPreview.dueOnSigningAmount.amount
 
 Write-Host "Payment Schedule:"
 foreach ($payment in $previewResponse.paymentPreview.paymentSchedule) {
-  Write-Host "  [$($payment.dueDate)] $($payment.amount.amount.ToString("C")) - $($payment.description)"
+  Write-Host "  [$($payment.dueDate)] $($payment.amount.amount.ToString("C")) - $($payment.description) [$($payment.type)]"
 }
 
 Write-Host "Due today: $($dueOnSigningAmount.ToString("C"))"
+
+Write-Host "  - Creating payment token..."
+$paymentRequestBody = ConvertTo-Json @{
+  amount                  = $dueOnSigningAmount
+  scope                   = 'ECOM'
+  customerId              = $memberId
+  permittedPaymentChoices = @("CREDIT_CARD")
+  referenceText           = "Membership Switch"
+}
+$sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
+
+Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
+Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+
+$paymentRequestToken = Read-Host -Prompt "    Enter payment request token"
+
+Write-Host "Performing switch..."
+
+$switchBody = @{
+  configId                   = $($switchOption.id)
+  membershipOfferTermId      = $destination.termId
+  sourceContractId           = $primaryContract.id
+  startDate                  = (Get-Date).ToString('yyyy-MM-dd')
+  selectedOptionalModuleIds  = $previewBody.selectedOptionalModuleIds
+  initialPaymentRequestToken = $paymentRequestToken
+}
+
+$switchResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$memberId/membership-switch" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $switchBody) -ContentType 'application/json'
+
+Write-Host "Done!"

@@ -1,9 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
-#1210320717 = Wombat Wombatisson (Ultimate - Existing Free Freeze used)
-#1210287620 = Santiago Autumn (Standard - No Free Freeze Used)
-#1210475620 = B.B. King (Fixed term contract - no freeze allowed)
-$memberId = 1210475620
+$memberId = Read-Host 'Enter existing Member ID'
+
+if ([string]::IsNullOrEmpty($memberId)) {
+  exit 1
+}
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 

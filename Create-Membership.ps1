@@ -2,7 +2,7 @@ using namespace System.Management.Automation.Host
 
 $ErrorActionPreference = 'Stop'
 
-$memberId = $null # 1210697492
+$memberId = $null
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 

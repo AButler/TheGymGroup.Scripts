@@ -1,6 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
-$memberId = 1210716791
+$memberId = Read-Host 'Enter existing Member ID'
+
+if ([string]::IsNullOrEmpty($memberId)) {
+  exit 1
+}
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
@@ -14,14 +18,9 @@ $gymIds = @{
 
 $dayPassesToPurchase = @(
   @{
-    name         = '5 day pass'
+    name         = '1 day pass'
     studioId     = '1210133180'
-    daysInFuture = 1
-  },
-  @{
-    name         = '3 day pass'
-    studioId     = '1210131000'
-    daysInFuture = 10
+    daysInFuture = 2
   }
 )
 

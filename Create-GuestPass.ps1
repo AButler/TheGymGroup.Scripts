@@ -1,6 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
-$memberId = 1210716601
+$memberId = Read-Host 'Enter existing Member ID'
+
+if ([string]::IsNullOrEmpty($memberId)) {
+  exit 1
+}
 
 $baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
 
