@@ -3,7 +3,8 @@ param(
   [ValidateSet("dev", "sit", "pat")]
   [string]$Environment,
   [switch]$FreezeMember,
-  [switch]$SkipAddons
+  [switch]$SkipAddons,
+  [switch]$AlignBillingDay
 )
 $ErrorActionPreference = 'Stop'
 
@@ -112,7 +113,7 @@ Write-Host "Creating member..."
 
 $lastName = "Member$(Get-Date -Format 'yyyyMMddHHmmss')"
 $today = Get-Date
-$startDate = $allowRetroactive ? $today.AddYears(-1).AddMonths(-1).AddDays(-12) : $today.AddMonths(-1)
+$startDate = $allowRetroactive ? ($AlignBillingDay ? $today.AddYears(-1).AddMonths(-1) : $today.AddYears(-1).AddMonths(-1).AddDays(-12)) : $today.AddMonths(-1)
 $employeeId = $employee.employeeId
 $rateId = $standardRate.databaseId
 $rateDetailId = $standardRateDetail.databaseId

@@ -90,14 +90,11 @@ $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryCon
 #Write-Host "Unfreeze Preview Response: $($previewResponse | ConvertTo-Json -Depth 10)"
 
 Write-Host "Unfreeze Preview - Payment Schedule:"
-$dueToday = 0;
-
 $debtsToFind = @()
 
 foreach ($charge in $previewResponse.previewCharges) {
-  Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]"
   if ($charge.paidPeriodFrom -eq [DateTime]::Today.ToString("yyyy-MM-dd") -and $charge.chargeType -eq 'MEMBERSHIP_CHARGE') {
-    $dueToday += [decimal]$charge.amount.amount
+    Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]" -ForegroundColor Green
 
     $debtsToFind += @{
       dueDate        = $charge.dueDate
@@ -107,7 +104,16 @@ foreach ($charge in $previewResponse.previewCharges) {
       paidPeriodTo   = $charge.paidPeriodTo
       chargeType     = $charge.chargeType
     }
+  } else {
+    Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]"
   }
+}
+
+$dueToday = 0
+if($previewResponse.accountBalanceAfterUpdate.amount -ge 0) { 
+  Write-Host "Account will have credit so no payment is due today." -ForegroundColor Green
+} else {
+  $dueToday = -($previewResponse.accountBalanceAfterUpdate.amount)
 }
 
 Write-Host "Total Due Today: $($dueToday.ToString("C"))"
@@ -124,18 +130,20 @@ if ($choice -eq 1) {
   exit 0
 }
 
-$paymentRequestBody = ConvertTo-Json @{
-  amount                  = $dueToday
-  scope                   = 'ECOM'
-  permittedPaymentChoices = @("CREDIT_CARD")
-  referenceText           = 'Unfreeze Pro-Rata Fee'
-  customerId              = $memberId
-}
+if($dueToday -gt 0) {
+  $paymentRequestBody = ConvertTo-Json @{
+    amount                  = $dueToday
+    scope                   = 'ECOM'
+    permittedPaymentChoices = @("CREDIT_CARD")
+    referenceText           = 'Unfreeze Pro-Rata Fee'
+    customerId              = $memberId
+  }
 
-$sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
-Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
-Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
-$paymentRequestToken = Read-Host -Prompt "Enter payment request token"
+  $sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
+  Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
+  Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+  $paymentRequestToken = Read-Host -Prompt "Enter payment request token"
+}
 
 $boundary = [Guid]::NewGuid().ToString()
 $unfreezeMultipartBody = @( 
@@ -151,48 +159,49 @@ $unfreezeResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryCo
 
 #Write-Host "Unfreeze Response: $($unfreezeResponse | ConvertTo-Json -Depth 10)"
 
-$debtIds = @()
-$retryDebtAttempts = 0
+if($dueToday -gt 0) {
+  $debtIds = @()
+  $retryDebtAttempts = 0
 
-Write-Host "Looking for upcoming transactions for the unfreeze charge..."
-#Write-Host (ConvertTo-Json $debtsToFind -Depth 10)
+  Write-Host "Looking for upcoming transactions for the unfreeze charge..."
+  #Write-Host (ConvertTo-Json $debtsToFind -Depth 10)
 
-while ($debtIds.Count -ne $debtsToFind.Count -and $retryDebtAttempts -lt 10) {
-  $upcomingTransactions = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/transactions/upcoming?sliceSize=50" -Method Get -Headers @{ "x-api-key" = $apiKey }
+  while ($debtIds.Count -ne $debtsToFind.Count -and $retryDebtAttempts -lt 10) {
+    $upcomingTransactions = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/transactions/upcoming?sliceSize=50" -Method Get -Headers @{ "x-api-key" = $apiKey }
 
-  foreach ($debtToFind in $debtsToFind) {
-    $matchingDebt = $upcomingTransactions.result | Where-Object { $_.dueDate -eq $debtToFind.dueDate -and $_.paidPeriodFrom -eq $debtToFind.paidPeriodFrom -and $_.paidPeriodTo -eq $debtToFind.paidPeriodTo -and $_.chargeType -eq $debtToFind.chargeType -and $_.amount.amount -eq $debtToFind.amount -and $_.description -eq $debtToFind.description } | Select-Object -First 1
+    foreach ($debtToFind in $debtsToFind) {
+      $matchingDebt = $upcomingTransactions.result | Where-Object { $_.dueDate -eq $debtToFind.dueDate -and $_.paidPeriodFrom -eq $debtToFind.paidPeriodFrom -and $_.paidPeriodTo -eq $debtToFind.paidPeriodTo -and $_.chargeType -eq $debtToFind.chargeType -and $_.amount.amount -eq $debtToFind.amount -and $_.description -eq $debtToFind.description } | Select-Object -First 1
 
-    if ($null -eq $matchingDebt) {
-      $debtIds = @()
-      Write-Host "Could not find upcoming transaction for due date $($debtToFind.dueDate), paid period from $($debtToFind.paidPeriodFrom), paid period to $($debtToFind.paidPeriodTo), charge type $($debtToFind.chargeType). Retrying in 1 seconds..." 
-      Start-Sleep -Seconds 1
-      $retryDebtAttempts++
-      break
+      if ($null -eq $matchingDebt) {
+        $debtIds = @()
+        Write-Host "Could not find upcoming transaction for due date $($debtToFind.dueDate), paid period from $($debtToFind.paidPeriodFrom), paid period to $($debtToFind.paidPeriodTo), charge type $($debtToFind.chargeType). Retrying in 1 seconds..." 
+        Start-Sleep -Seconds 1
+        $retryDebtAttempts++
+        break
+      }
+      
+      $debtIds += $matchingDebt.id
     }
-    
-    $debtIds += $matchingDebt.id
   }
+
+  if ($debtIds.Count -ne $debtsToFind.Count) {
+    Write-Host (ConvertTo-Json $upcomingTransactions -Depth 10)
+    Write-Error "Could not find upcoming transaction for the unfreeze charge." 
+    exit 1 
+  }
+
+  $bookPaymentBody = @{
+    paymentRequestToken = $paymentRequestToken
+    amount              = @{
+      amount   = $dueToday
+      currency = 'GBP' 
+    } 
+    debtClaimIds        = $debtIds
+  }
+
+  Write-Host "Booking payment for unfreeze charge..."
+  #Write-Host "POST $baseUrl/v1/customers/$memberId/account/payment"
+  #Write-Host (ConvertTo-Json $bookPaymentBody -Depth 10)
+  $bookPaymentResponse = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/payment" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $bookPaymentBody) -ContentType 'application/json'
 }
-
-if ($debtIds.Count -ne $debtsToFind.Count) {
-  Write-Host (ConvertTo-Json $upcomingTransactions -Depth 10)
-  Write-Error "Could not find upcoming transaction for the unfreeze charge." 
-  exit 1 
-}
-
-$bookPaymentBody = @{
-  paymentRequestToken = $paymentRequestToken
-  amount              = @{
-    amount   = $dueToday
-    currency = 'GBP' 
-  } 
-  debtClaimIds        = $debtIds
-}
-
-Write-Host "Booking payment for unfreeze charge..."
-#Write-Host "POST $baseUrl/v1/customers/$memberId/account/payment"
-#Write-Host (ConvertTo-Json $bookPaymentBody -Depth 10)
-$bookPaymentResponse = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/payment" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $bookPaymentBody) -ContentType 'application/json'
-
 Write-Host "Membership unfrozen successfully."
