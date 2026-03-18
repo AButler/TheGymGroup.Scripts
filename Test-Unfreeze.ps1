@@ -91,10 +91,13 @@ $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryCon
 
 Write-Host "Unfreeze Preview - Payment Schedule:"
 $debtsToFind = @()
+[decimal]$unfreezeCharge = 0.0
 
 foreach ($charge in $previewResponse.previewCharges) {
   if ($charge.paidPeriodFrom -eq [DateTime]::Today.ToString("yyyy-MM-dd") -and $charge.chargeType -eq 'MEMBERSHIP_CHARGE') {
     Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]" -ForegroundColor Green
+
+    $unfreezeCharge += $charge.amount.amount
 
     $debtsToFind += @{
       dueDate        = $charge.dueDate
@@ -104,17 +107,43 @@ foreach ($charge in $previewResponse.previewCharges) {
       paidPeriodTo   = $charge.paidPeriodTo
       chargeType     = $charge.chargeType
     }
-  } else {
+  }
+  else {
     Write-Host "  [$($charge.dueDate)] $($charge.paidPeriodFrom) - $($charge.paidPeriodTo) | $($charge.amount.amount.ToString("C")) - $($charge.description) [$($charge.chargeType)]"
   }
 }
 
-$dueToday = 0
-if($previewResponse.accountBalanceAfterUpdate.amount -ge 0) { 
+[decimal]$dueToday = 0.0
+if ($previewResponse.accountBalanceAfterUpdate.amount -ge 0) { 
   Write-Host "Account will have credit so no payment is due today." -ForegroundColor Green
-} else {
-  $dueToday = -($previewResponse.accountBalanceAfterUpdate.amount)
 }
+else {
+  $dueToday = [decimal][Math]::Max(0.0, - ([decimal]$previewResponse.accountBalanceAfterUpdate.amount))
+}
+
+$transactionCost = [decimal]$previewResponse.accountBalanceBeforeUpdate.amount - [decimal]$previewResponse.accountBalanceAfterUpdate.amount
+
+if ($previewResponse.accountBalanceBeforeUpdate.amount -lt 0) {
+  Write-Error "Account has outstanding debt of $($debt.ToString("C")) before unfreeze. Please ask the member to clear their debt before attempting unfreeze."
+  exit 1
+}
+
+$response = [ordered]@{
+  transactionSummary = [ordered]@{
+    fee      = $unfreezeCharge
+    refund   = $unfreezeCharge - $transactionCost
+    totalFee = $transactionCost
+    credit   = [ordered]@{
+      before  = [Math]::Max(0.0, [decimal]$previewResponse.accountBalanceBeforeUpdate.amount)
+      applied = [Math]::Max(0.0, $transactionCost - $dueToday)
+      after   = [Math]::Max(0.0, [decimal]$previewResponse.accountBalanceAfterUpdate.amount)
+    }
+  }
+  dueNow             = $dueToday
+}
+
+Write-Host "TGG API Response:"
+Write-Host (ConvertTo-Json $response -Depth 10)
 
 Write-Host "Total Due Today: $($dueToday.ToString("C"))"
 
@@ -130,7 +159,7 @@ if ($choice -eq 1) {
   exit 0
 }
 
-if($dueToday -gt 0) {
+if ($dueToday -gt 0) {
   $paymentRequestBody = ConvertTo-Json @{
     amount                  = $dueToday
     scope                   = 'ECOM'
@@ -159,7 +188,7 @@ $unfreezeResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryCo
 
 #Write-Host "Unfreeze Response: $($unfreezeResponse | ConvertTo-Json -Depth 10)"
 
-if($dueToday -gt 0) {
+if ($dueToday -gt 0) {
   $debtIds = @()
   $retryDebtAttempts = 0
 

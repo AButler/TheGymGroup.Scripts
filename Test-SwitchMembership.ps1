@@ -97,11 +97,11 @@ if ($primaryContract.price -gt $destination.price) {
   $previewBody.selectedOptionalModuleIds += $destination.adminFeeId
 }
 
-#Write-Host (ConvertTo-Json $previewBody -Depth 10)
+Write-Host (ConvertTo-Json $previewBody -Depth 10)
 
 $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$memberId/membership-switch/preview" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body (ConvertTo-Json $previewBody) -ContentType 'application/json'
 
-#Write-Host (ConvertTo-Json $previewResponse -Depth 10)
+Write-Host (ConvertTo-Json $previewResponse -Depth 10)
 
 $dueOnSigningAmount = $previewResponse.paymentPreview.dueOnSigningAmount.amount
 
@@ -110,22 +110,52 @@ foreach ($payment in $previewResponse.paymentPreview.paymentSchedule) {
   Write-Host "  [$($payment.dueDate)] $($payment.amount.amount.ToString("C")) - $($payment.description) [$($payment.type)]"
 }
 
-Write-Host "Due today: $($dueOnSigningAmount.ToString("C"))"
-
-Write-Host "  - Creating payment token..."
-$paymentRequestBody = ConvertTo-Json @{
-  amount                  = $dueOnSigningAmount
-  scope                   = 'ECOM'
-  customerId              = $memberId
-  permittedPaymentChoices = @("CREDIT_CARD")
-  referenceText           = "Membership Switch"
+if ($previewResponse.accountBalanceBeforeUpdate.amount -lt 0) {
+  Write-Error "Account has outstanding debt of $($debt.ToString("C")) before unfreeze. Please ask the member to clear their debt before attempting unfreeze."
+  exit 1
 }
-$sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
 
-Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
-Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+$transactionCost = [decimal]$previewResponse.accountBalanceBeforeUpdate.amount - [decimal]$previewResponse.accountBalanceAfterUpdate.amount
 
-$paymentRequestToken = Read-Host -Prompt "    Enter payment request token"
+$dueToday = [Math]::Max(0.0, - ([decimal]$previewResponse.accountBalanceAfterUpdate.amount))
+
+$response = [ordered]@{
+  transactionSummary = [ordered]@{
+    refund = $dueOnSigningAmount - $transactionCost
+    fee    = $dueOnSigningAmount
+    credit = [ordered]@{
+      before  = [Math]::Max(0.0, [decimal]$previewResponse.accountBalanceBeforeUpdate.amount)
+      applied = [Math]::Max(0.0, $transactionCost - $dueToday)
+      after   = [Math]::Max(0.0, [decimal]$previewResponse.accountBalanceAfterUpdate.amount)
+    }
+  }
+  dueToday           = $dueToday
+}
+
+Write-Host "TGG API Response:"
+Write-Host (ConvertTo-Json $response -Depth 10)
+Write-Host ""
+
+Write-Host "Due today: $($dueToday.ToString("C"))"
+
+$paymentRequestToken = $null
+
+if ($dueToday -gt 0) {
+  Write-Host "  - Creating payment token..."
+  $paymentRequestBody = ConvertTo-Json @{
+    amount                  = $dueToday
+    scope                   = 'ECOM'
+    customerId              = $memberId
+    permittedPaymentChoices = @("CREDIT_CARD")
+    referenceText           = "Membership Switch"
+  }
+  $sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
+
+  Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
+  Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
+
+  $paymentRequestToken = Read-Host -Prompt "    Enter payment request token"
+}
 
 Write-Host "Performing switch..."
 

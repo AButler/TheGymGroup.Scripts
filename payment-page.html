@@ -1,56 +1,364 @@
 <html lang="en">
   <head>
-    <title>Payment</title>
+    <title>Payment Debug Console</title>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://widget.dev.payment.sportalliance.com/widget.js"></script>
     <style type="text/css">
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+          "Ubuntu", "Cantarell", sans-serif;
+        color: #2d3748;
+        line-height: 1.6;
+      }
+
       main {
-        padding: 20px;
+        padding: 24px;
         display: flex;
         flex-direction: column;
         align-items: center;
-        width: 900px;
-        height: 100vh;
-        font-family: Arial, sans-serif;
+        max-width: 1000px;
+        margin: 0 auto;
+        min-height: 100vh;
       }
-      .box {
-        border: 1px solid #ccc;
-        padding: 10px;
-        margin-bottom: 20px;
-        width: 100%;
-        font-size: 18px;
-        border-radius: 3px;
+
+      h1 {
+        color: white;
+        text-align: center;
+        margin-bottom: 32px;
+        font-size: 2.5em;
+        font-weight: 700;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        letter-spacing: -0.025em;
       }
-      .box input {
+
+      .container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 16px;
+        padding: 32px;
         width: 100%;
-        font-size: 16px;
-        padding: 5px;
-        margin-top: 5px;
-        font-family: Consolas, "Courier New", Courier, monospace;
+        box-shadow:
+          0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+
+      .card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        width: 100%;
+        box-shadow:
+          0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e2e8f0;
+        transition: all 0.2s ease;
+      }
+
+      .card:hover {
+        box-shadow:
+          0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+
+      .card-header {
+        font-weight: 600;
+        font-size: 1.1em;
+        margin-bottom: 16px;
+        color: #4a5568;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .card-header::before {
+        content: "🔑";
+        font-size: 1.2em;
+      }
+
+      .input-group {
+        position: relative;
+        display: flex;
+        gap: 8px;
+      }
+
+      .card input {
+        flex: 1;
+        font-size: 14px;
+        padding: 12px 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 8px;
+        font-family:
+          "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Courier New",
+          monospace;
+        background: #f7fafc;
+        transition: all 0.2s ease;
+        font-weight: 500;
+      }
+
+      .card input:focus {
+        outline: none;
+        border-color: #667eea;
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      }
+
+      .copy-btn {
+        padding: 12px 16px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+      }
+
+      .copy-btn:hover {
+        background: #5a6fd8;
+        transform: translateY(-1px);
+      }
+
+      .copy-btn:active {
+        transform: translateY(0);
+      }
+
+      .copy-btn.copied {
+        background: #48bb78;
+      }
+
+      .code {
+        background: #1a202c;
+        color: #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        font-family:
+          "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", "Courier New",
+          monospace;
+        white-space: pre-wrap;
+        font-size: 13px;
+        line-height: 1.5;
+        overflow-x: auto;
+        position: relative;
+        border: 1px solid #2d3748;
+      }
+
+      .code::before {
+        content: "JSON";
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        background: #667eea;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .widget-container {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        width: 100%;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e2e8f0;
+      }
+
+      .status-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .status-indicator.ready {
+        background: #48bb78;
+        box-shadow: 0 0 6px rgba(72, 187, 120, 0.5);
+      }
+
+      .status-indicator.pending {
+        background: #ed8936;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .success-header::before {
+        content: "✅";
+      }
+
+      .details-header::before {
+        content: "📋";
+      }
+
+      .token-header::before {
+        content: "🎫";
       }
     </style>
   </head>
   <body>
     <main>
-      <div class="box">
-        Payment Session Token:
-        <input
-          type="text"
-          readonly
-          id="payment-session-token"
-          value="Not Provided"
-        />
-      </div>
-      <div id="widget"></div>
-      <div id="payment-request-token-box" class="box" style="display: none">
-        Payment Request Token:
-        <input type="text" readonly id="payment-request-token" value="???" />
+      <div class="container">
+        <div class="card">
+          <div class="card-header">
+            <span class="status-indicator ready"></span>
+            Payment Session Token
+          </div>
+          <div class="input-group">
+            <input
+              type="text"
+              readonly
+              id="payment-session-token"
+              value="Not Provided"
+            />
+            <button
+              class="copy-btn"
+              onclick="copyToClipboard('payment-session-token', this)"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+
+        <div class="widget-container" id="widget-container">
+          <div id="widget"></div>
+        </div>
+
+        <div id="payment-request-token-box" style="display: none">
+          <div class="card">
+            <div class="card-header success-header">
+              <span class="status-indicator ready"></span>
+              Payment Request Token
+            </div>
+            <div class="input-group">
+              <input
+                type="text"
+                readonly
+                id="payment-request-token"
+                value="???"
+              />
+              <button
+                class="copy-btn"
+                onclick="copyToClipboard('payment-request-token', this)"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header details-header">Payment Details</div>
+            <div id="payment-instrument-details" class="code"></div>
+            <button
+              class="copy-btn"
+              style="margin-top: 12px"
+              onclick="copyToClipboard('payment-instrument-details', this)"
+            >
+              Copy JSON
+            </button>
+          </div>
+
+          <div class="card">
+            <div class="card-header token-header">
+              <span class="status-indicator ready"></span>
+              Payment Instrument Token
+            </div>
+            <div class="input-group">
+              <input
+                type="text"
+                readonly
+                id="payment-instrument-token"
+                value="???"
+              />
+              <button
+                class="copy-btn"
+                onclick="copyToClipboard('payment-instrument-token', this)"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
     <script>
+      // Copy to clipboard functionality with visual feedback
+      function copyToClipboard(elementId, button) {
+        const element = document.getElementById(elementId);
+        let textToCopy = "";
+
+        if (element.tagName === "INPUT") {
+          textToCopy = element.value;
+        } else {
+          textToCopy = element.innerText;
+        }
+
+        navigator.clipboard
+          .writeText(textToCopy)
+          .then(() => {
+            const originalText = button.textContent;
+            button.textContent = "Copied!";
+            button.classList.add("copied");
+
+            setTimeout(() => {
+              button.textContent = originalText;
+              button.classList.remove("copied");
+            }, 2000);
+          })
+          .catch((err) => {
+            console.error("Failed to copy text: ", err);
+            // Fallback for older browsers
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+              document.execCommand("copy");
+              const originalText = button.textContent;
+              button.textContent = "Copied!";
+              button.classList.add("copied");
+
+              setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove("copied");
+              }, 2000);
+            } catch (err) {
+              console.error("Fallback copy failed: ", err);
+            }
+            document.body.removeChild(textArea);
+          });
+      }
+
+      // Existing payment widget logic
       const paymentSessionToken = new URLSearchParams(
-        window.location.search
+        window.location.search,
       ).get("paymentSessionToken");
 
       if (paymentSessionToken) {
@@ -63,13 +371,21 @@
           container: "widget",
           countryCode: "GB",
           locale: "en-GB",
-          onSuccess: (paymentToken) => {
-            document.getElementById("widget").style.display = "none";
+          onSuccess: (
+            paymentToken,
+            paymentInstrumentDetails,
+            paymentInstrumentToken,
+          ) => {
+            document.getElementById("widget-container").style.display = "none";
             document.getElementById("payment-request-token").value =
               paymentToken;
             document.getElementById("payment-request-token-box").style.display =
               "block";
             document.getElementById("payment-request-token").select();
+            document.getElementById("payment-instrument-details").innerText =
+              JSON.stringify(paymentInstrumentDetails, null, 2);
+            document.getElementById("payment-instrument-token").value =
+              paymentInstrumentToken;
           },
         });
       }
