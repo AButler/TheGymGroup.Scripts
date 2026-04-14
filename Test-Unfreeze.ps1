@@ -87,7 +87,7 @@ Write-Host (ConvertTo-Json $unfreezeRequestBody)
 
 $previewResponse = Invoke-RestMethod -Uri "$baseUrl/v1/memberships/$($primaryContract.id)/self-service/idle-periods/$($currentFreezePeriod.id)/preview" -Method Put -Headers @{ "x-api-key" = $apiKey } -Body ($unfreezeRequestBody | ConvertTo-Json) -ContentType "application/json"
   
-#Write-Host "Unfreeze Preview Response: $($previewResponse | ConvertTo-Json -Depth 10)"
+Write-Host "Unfreeze Preview Response: $($previewResponse | ConvertTo-Json -Depth 10)"
 
 Write-Host "Unfreeze Preview - Payment Schedule:"
 $debtsToFind = @()
@@ -113,18 +113,21 @@ foreach ($charge in $previewResponse.previewCharges) {
   }
 }
 
+$chargesInFuture = ($debtsToFind | Where-Object { $_.dueDate -gt [DateTime]::Today.ToString("yyyy-MM-dd") })
+$futureChargeCost = ($chargesInFuture | Measure-Object -Property amount -Sum).Sum
+
 [decimal]$dueToday = 0.0
-if ($previewResponse.accountBalanceAfterUpdate.amount -ge 0) { 
+if (($previewResponse.accountBalanceAfterUpdate.amount - $futureChargeCost) -ge 0) { 
   Write-Host "Account will have credit so no payment is due today." -ForegroundColor Green
 }
 else {
-  $dueToday = [decimal][Math]::Max(0.0, - ([decimal]$previewResponse.accountBalanceAfterUpdate.amount))
+  $dueToday = [decimal][Math]::Max(0.0, - ([decimal]$previewResponse.accountBalanceAfterUpdate.amount)) + $futureChargeCost
 }
 
-$transactionCost = [decimal]$previewResponse.accountBalanceBeforeUpdate.amount - [decimal]$previewResponse.accountBalanceAfterUpdate.amount
+$transactionCost = ([decimal]$previewResponse.accountBalanceBeforeUpdate.amount - [decimal]$previewResponse.accountBalanceAfterUpdate.amount) + $futureChargeCost
 
 if ($previewResponse.accountBalanceBeforeUpdate.amount -lt 0) {
-  Write-Error "Account has outstanding debt of $($debt.ToString("C")) before unfreeze. Please ask the member to clear their debt before attempting unfreeze."
+  Write-Error "Account has outstanding debt of $($previewResponse.accountBalanceBeforeUpdate.amount.ToString("C")) before unfreeze. Please ask the member to clear their debt before attempting unfreeze."
   exit 1
 }
 
@@ -197,6 +200,8 @@ if ($dueToday -gt 0) {
 
   while ($debtIds.Count -ne $debtsToFind.Count -and $retryDebtAttempts -lt 10) {
     $upcomingTransactions = Invoke-RestMethod -Uri "$baseUrl/v1/customers/$memberId/account/transactions/upcoming?sliceSize=50" -Method Get -Headers @{ "x-api-key" = $apiKey }
+
+    Write-Host "Transactions: $($upcomingTransactions | ConvertTo-Json -Depth 10)"
 
     foreach ($debtToFind in $debtsToFind) {
       $matchingDebt = $upcomingTransactions.result | Where-Object { $_.dueDate -eq $debtToFind.dueDate -and $_.paidPeriodFrom -eq $debtToFind.paidPeriodFrom -and $_.paidPeriodTo -eq $debtToFind.paidPeriodTo -and $_.chargeType -eq $debtToFind.chargeType -and $_.amount.amount -eq $debtToFind.amount -and $_.description -eq $debtToFind.description } | Select-Object -First 1
