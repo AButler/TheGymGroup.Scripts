@@ -4,7 +4,8 @@ param(
   [string]$Environment,
   [switch]$FreezeMember,
   [switch]$SkipAddons,
-  [switch]$AlignBillingDay
+  [switch]$AlignBillingDay,
+  [switch]$MisalignAddonDate
 )
 $ErrorActionPreference = 'Stop'
 
@@ -262,8 +263,7 @@ Write-Host "Contract ID: $contractId" -ForegroundColor Green
 
 if (!$SkipAddons) {
 
-  $addonStartDate = $startDate
-  #$addonStartDate = $startDate.AddMonths(1).AddDays(4)
+  $addonStartDate = $MisalignAddonDate ? $startDate.AddMonths(1).AddDays(4) : $startDate
 
   Write-Host "Adding Guest Pass addon..."
 
@@ -377,6 +377,25 @@ if ($FreezeMember) {
 
   Write-Host "Idle Period ID: $($idlePeriodResponse.databaseId)" -ForegroundColor Green
   
+}
+
+Write-Host "Settling account..."
+$accountBalance = Invoke-RestMethod -Uri "$BaseUrl/rest-api/customer/$memberId/account/accounting" -Method Get -WebSession $session
+$amountDue = [Math]::Max($accountBalance.total, 0)
+if ($amountDue -gt 0) {
+  Write-Host "Amount due: $amountDue" -ForegroundColor Yellow
+  $bankAccounts = Invoke-RestMethod -Uri "$BaseUrl/rest-api/organizationunit/$studioId/bankusageconfiguration" -Method Get -WebSession $session
+  $bankAccount = $bankAccounts | Where-Object { $_.bankUsageType -eq "DEPOSIT" } | Select-Object -First 1
+  $paymentBody = @{ 
+    amount                 = $amountDue
+    fkCustomer             = $memberId
+    organizationUnitBankId = $bankAccount.organizationUnitBankAccountDto.databaseId 
+    paidDate               = (Get-Date).ToString("yyyy-MM-dd")
+  }
+  $response = Invoke-WebRequest -Uri "$BaseUrl/rest-api/bookingentry/banktransfer" -Method Post -WebSession $session -Body (ConvertTo-Json $paymentBody) -ContentType 'application/json'
+}
+else {
+  Write-Host "Account is already settled" -ForegroundColor Green
 }
 
 Write-Host "$BaseUrl/#/customermanagement/$memberId/overview" -ForegroundColor DarkGray
