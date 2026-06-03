@@ -1,9 +1,7 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$InputFile,
-  [Parameter(Mandatory = $true)]
-  [ValidateSet("dev", "sit", "pat")]
-  [string]$Environment
+  [switch]$Production
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,17 +11,7 @@ if (!(Test-Path -Path $InputFile)) {
   exit 1
 }
 
-switch ($Environment) {
-  "dev" {
-    $BaseUrl = "https://tgg-dev.open-api.sandbox.perfectgym.com"
-  }
-  "sit" {
-    $BaseUrl = "https://tgg-sit.open-api.sandbox.perfectgym.com"
-  }
-  "pat" {
-    $BaseUrl = "https://tgg-pat.open-api.sandbox.perfectgym.com"
-  }
-}
+$urlSuffix = if ($Production) { ".open-api.perfectgym.com" } else { ".open-api.sandbox.perfectgym.com" }
 
 try {
   $gyms = Get-Content -Path $InputFile | ConvertFrom-Csv
@@ -37,6 +25,9 @@ foreach ($gym in $gyms) {
   Write-Host "Activating gym '$($gym."Studio Name")'..."
   $apiKey = $gym."Api Key"
   Write-Host "  * $apiKey"
+
+  $tenant = $gym."Tenant Name"
+  $baseUrl = "https://$($tenant)$($urlSuffix)"
 
   Invoke-RestMethod -Uri "$BaseUrl/v1/studios/confirmActivation" -Method Post -Headers @{ "x-api-key" = $apiKey }
 }

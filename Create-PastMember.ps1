@@ -120,6 +120,8 @@ $rateId = $standardRate.databaseId
 $rateDetailId = $standardRateDetail.databaseId
 $rateDetailPaymentFrequencyId = $standardRatePaymentFrequency.databaseId
 
+$randomNumber = Get-Random -Maximum 1000000
+
 $createMemberPayload = @{
   identityCardProvided = $true
   masterData           = @{
@@ -134,7 +136,7 @@ $createMemberPayload = @{
     gender                     = 0
     dateOfBirth                = "2000-02-01"
     lastname                   = $lastName
-    email                      = ""
+    email                      = "andrew.butler+past.$randomNumber@thegymgroup.com"
     info                       = ""
     birthInformation           = @{
       dateOfBirth  = "2000-02-01"

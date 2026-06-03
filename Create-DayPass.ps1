@@ -20,6 +20,11 @@ $dayPassesToPurchase = @(
   @{
     name         = '1 day pass'
     studioId     = '1210133180'
+    daysInFuture = 0
+  },
+  @{
+    name         = '3 day pass'
+    studioId     = '1210133180'
     daysInFuture = 2
   }
 )

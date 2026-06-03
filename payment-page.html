@@ -221,6 +221,10 @@
       .token-header::before {
         content: "🎫";
       }
+
+      .fingerprint-header::before {
+        content: "🕵️";
+      }
     </style>
   </head>
   <body>
@@ -267,6 +271,29 @@
               <button
                 class="copy-btn"
                 onclick="copyToClipboard('payment-request-token', this)"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header fingerprint-header">
+              <span class="status-indicator ready"></span>
+              Payment Instrument Fingerprint
+            </div>
+            <div class="input-group">
+              <input
+                type="text"
+                readonly
+                id="payment-instrument-fingerprint"
+                value="???"
+              />
+              <button
+                class="copy-btn"
+                onclick="
+                  copyToClipboard('payment-instrument-fingerprint', this)
+                "
               >
                 Copy
               </button>
@@ -365,16 +392,23 @@
         document.getElementById("payment-session-token").value =
           paymentSessionToken;
 
+        const featureFlags = {
+          disableStripeLink: true,
+          showPaymentInstrumentList: false,
+        };
+
         const widget = paymentWidget.init({
           userSessionToken: paymentSessionToken,
           environment: "sandbox",
           container: "widget",
           countryCode: "GB",
           locale: "en-GB",
+          featureFlags: featureFlags,
           onSuccess: (
             paymentToken,
             paymentInstrumentDetails,
             paymentInstrumentToken,
+            paymentInstrumentFingerprint,
           ) => {
             document.getElementById("widget-container").style.display = "none";
             document.getElementById("payment-request-token").value =
@@ -386,6 +420,8 @@
               JSON.stringify(paymentInstrumentDetails, null, 2);
             document.getElementById("payment-instrument-token").value =
               paymentInstrumentToken;
+            document.getElementById("payment-instrument-fingerprint").value =
+              paymentInstrumentFingerprint;
           },
         });
       }
