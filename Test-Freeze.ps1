@@ -6,17 +6,12 @@ if ([string]::IsNullOrEmpty($memberId)) {
   exit 1
 }
 
-$baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
+$tenant = 'dev'
+$baseUrl = "https://tgg-$tenant.open-api.sandbox.perfectgym.com"
 
-$gymIds = @{
-  '1210093500' = @{ name = 'London East Croydon'; apiKey = '7ad2820f-80a5-4526-903c-cea9a771485e' } 
-  '1210133180' = @{ name = 'Holborn Circus'; apiKey = 'f4800efd-5f8a-4e84-94dc-2cf629682726' } 
-  '1210131000' = @{ name = 'Hounslow'; apiKey = '3322a8ee-7198-46ab-9c59-15a8e7f1c632' } 
-  '1210130080' = @{ name = 'Ilford Romford Road'; apiKey = '355a447b-f1be-4e38-a924-ab148c54266d' } 
-  '1210130920' = @{ name = 'Ilford Pioneer'; apiKey = 'b2660123-a7d7-4dfe-afcd-4760c632845d' } 
-}
+$gymIds = (ConvertFrom-Json (Get-Content (Join-Path $PSScriptRoot 'api-keys.json') -Raw) -AsHashtable)[$tenant]
 
-$crossStudioApiKey = $gymIds['1210093500'].apiKey
+$crossStudioApiKey = $gymIds['CrossStudio'].apiKey
 
 $member = Invoke-RestMethod -Uri "$baseUrl/v1/cross-studio/customers/$memberId" -Headers @{ "x-api-key" = $crossStudioApiKey }
 

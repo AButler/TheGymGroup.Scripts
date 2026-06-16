@@ -4,23 +4,12 @@ $ErrorActionPreference = 'Stop'
 
 $memberId = $null
 
-$baseUrl = 'https://tgg-dev.open-api.sandbox.perfectgym.com'
+$tenant = 'dev'
+$baseUrl = "https://tgg-$tenant.open-api.sandbox.perfectgym.com"
 
-$devGymIds = @{
-  '1210093500' = @{ name = 'London East Croydon'; apiKey = '7ad2820f-80a5-4526-903c-cea9a771485e' } 
-  '1210133180' = @{ name = 'Holborn Circus'; apiKey = 'f4800efd-5f8a-4e84-94dc-2cf629682726' } 
-  '1210131000' = @{ name = 'Hounslow'; apiKey = '3322a8ee-7198-46ab-9c59-15a8e7f1c632' } 
-  '1210130080' = @{ name = 'Ilford Romford Road'; apiKey = '355a447b-f1be-4e38-a924-ab148c54266d' } 
-  '1210130920' = @{ name = 'Ilford Pioneer'; apiKey = 'b2660123-a7d7-4dfe-afcd-4760c632845d' } 
-}
+$gymIds = (ConvertFrom-Json (Get-Content (Join-Path $PSScriptRoot 'api-keys.json') -Raw) -AsHashtable)[$tenant]
 
-$patGymIds = @{
-  '1210013240' = @{ name = 'London East Croydon'; apiKey = '3233269b-33a0-4e5f-b1c1-05002f2dfd79' } 
-}
-
-$gymIds = $devGymIds
-
-$apiKey = $gymIds['1210093500'].apiKey
+$apiKey = $gymIds['CrossStudio'].apiKey
 
 $choices = [ChoiceDescription[]] @(
   [ChoiceDescription]::new("&Yes (Create Member)", "Create a member"),
@@ -44,7 +33,7 @@ else {
     referenceText           = 'Recurring Charge'
   }
 
-  $sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'x-api-key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
+  $sessionToken = Invoke-RestMethod -Uri "$baseUrl/v1/payments/user-session" -Method Post -Headers @{ 'X-Api-Key' = $apiKey } -Body $paymentRequestBody -ContentType 'application/json'
   Write-Host "  - Session Token: $($sessionToken.token)" -ForegroundColor Green
   Write-Host "    http://localhost:3000/payment-page.html?paymentSessionToken=$($sessionToken.token)" -ForegroundColor DarkGray
   $paymentRequestToken = Read-Host -Prompt "Enter payment request token"
